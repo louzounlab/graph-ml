@@ -3,12 +3,8 @@ from __future__ import print_function
 
 import argparse
 import logging
-import os
-import pickle
 import random
 import time
-from itertools import product
-from operator import itemgetter as at
 
 import numpy as np
 import torch
@@ -16,15 +12,14 @@ import torch.nn.functional as functional
 import torch.optim as optim
 from torch.autograd import Variable
 
-from data_loader import GraphLoader
 from feature_meta import NODE_FEATURES
 from features_algorithms.vertices.neighbor_nodes_histogram import nth_neighbor_calculator
 from features_infra.feature_calculators import FeatureMeta
-from layers import AsymmetricGCN
-from loggers import PrintLogger, FileLogger, multi_logger, EmptyLogger, CSVLogger
-from models import GCNCombined, GCN, GCNKipf
-
-PROJ_DIR = os.path.dirname(os.path.realpath(__file__))
+from gcn import *
+from gcn.data_loader import GraphLoader
+from gcn.layers import AsymmetricGCN
+from gcn.models import GCNCombined, GCN
+from loggers import PrintLogger, multi_logger, EmptyLogger, CSVLogger
 
 
 def parse_args():
@@ -46,6 +41,8 @@ def parse_args():
                         help='Dropout rate (1 - keep probability).')
     parser.add_argument('--dataset', type=str, default="cora",
                         help='The dataset to use.')
+    parser.add_argument('--prefix', type=str, default="",
+                        help='The prefix of the products dir name.')
 
     args = parser.parse_args()
     # args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -165,7 +162,10 @@ class ModelRunner:
 
         # Testing
         test_idx = self.loader.test_idx
-        return {name: self._test(name, model_args, test_idx) for name, model_args in models.items()}
+        result = {name: self._test(name, model_args, test_idx) for name, model_args in models.items()}
+        for name, val in sorted(result.items(), key=lambda x: x[0]):
+            self._data_logger.info(name, val["loss"], val["acc"], (train_p / (2 - train_p)) * 100)
+        return result
 
     def _train(self, epoch, model_name, model_args, idx_train, idx_val):
         model, optimizer = model_args["model"], model_args["optimizer"]
@@ -203,7 +203,6 @@ class ModelRunner:
         self._logger.info(model_name + " Test: " +
                           "loss= {:.4f} ".format(loss_test.data[0]) +
                           "accuracy= {:.4f}".format(acc_test.data[0]))
-        # self._data_logger.info(model_name, loss_test.data[0], acc_test.data[0])  # , *list(map(at(1), config)))
         return {"loss": loss_test.data[0], "acc": acc_test.data[0]}
 
 
@@ -241,7 +240,7 @@ def main_clean():
     init_seed(conf['seed'], conf['cuda'])
     dataset_path = os.path.join(PROJ_DIR, "data", dataset)
 
-    products_path = os.path.join(PROJ_DIR, "logs", dataset + "_res_29_4", time.strftime("%Y_%m_%d_%H_%M_%S"))
+    products_path = os.path.join(GCN_DIR, "logs", args.prefix + dataset, time.strftime("%Y_%m_%d_%H_%M_%S"))
     if not os.path.exists(products_path):
         os.makedirs(products_path)
 
@@ -251,7 +250,8 @@ def main_clean():
         # FileLogger("results_%s_all" % config["dataset"], path=products_path, level=logging.DEBUG),
     ], name=None)
 
-    data_logger = None  # CSVLogger("results_%s" % config["dataset"], path=products_path)
+    data_logger = CSVLogger("results_%s" % conf["dataset"], path=products_path)
+    data_logger.info("model_name", "loss", "acc", "train_p")
 
     runner = ModelRunner(dataset_path, conf, logger=logger, data_logger=data_logger)
 
@@ -262,7 +262,7 @@ def main_clean():
     train_p = relative_train_p
 
     runner.loader.split_test(test_p)
-    res = [runner.run(train_p) for _ in range(10)]
+    res = [runner.run(train_p) for _ in range(2)]
     aggregated = aggregate_results(res)
     for name, vals in aggregated.items():
         val_list = sorted(vals.items(), key=lambda x: x[0], reverse=True)

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as functional
-from pygcn.layers import GraphConvolution, AsymmetricGCN
+from gcn.layers import GraphConvolution, AsymmetricGCN
 
 
 class GCNKipf(nn.Module):

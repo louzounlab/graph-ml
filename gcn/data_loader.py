@@ -8,7 +8,6 @@ from scipy import sparse
 from sklearn.model_selection import train_test_split
 
 from features_infra.graph_features import GraphFeatures
-from layers import AsymmetricGCN, GraphConvolution
 from loggers import EmptyLogger
 
 DTYPE = np.float32
