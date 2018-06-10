@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from ..layers import GraphConvolution
+from gcn.layers import GraphConvolution
 
 
 class RecurrentGCNLayer(GraphConvolution):
