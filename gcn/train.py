@@ -19,7 +19,7 @@ from gcn import *
 from gcn.data_loader import GraphLoader
 from gcn.layers import AsymmetricGCN
 from gcn.models import GCNCombined, GCN
-from loggers import PrintLogger, multi_logger, EmptyLogger, CSVLogger
+from loggers import PrintLogger, multi_logger, EmptyLogger, CSVLogger, FileLogger
 
 
 def parse_args():
@@ -83,8 +83,7 @@ class ModelRunner:
         self._conf = conf
 
         features_meta = get_features()
-        self.loader = GraphLoader(dataset_path, features_meta, is_max_connected=False,
-                                  # self._conf['dataset'] == "citeseer",
+        self.loader = GraphLoader(dataset_path, features_meta, is_max_connected=False,  # self._conf['dataset'] == "citeseer",
                                   cuda_num=conf["cuda"], logger=self._logger)
 
     def _get_models(self):
@@ -226,9 +225,23 @@ def aggregate_results(res_list):
     return aggregated
 
 
+def execute_runner(runner, logger, train_p, num_iter=1):
+    train_p /= 100
+    val_p = test_p = (1 - train_p) / 2.
+    train_p /= (val_p + train_p)
+
+    runner.loader.split_test(test_p)
+    res = [runner.run(train_p) for _ in range(num_iter)]
+    aggregated = aggregate_results(res)
+    for name, vals in aggregated.items():
+        val_list = sorted(vals.items(), key=lambda x: x[0], reverse=True)
+        logger.info("*"*15 + "%s mean: %s", name, ", ".join("%s=%3.4f" % (key, np.mean(val)) for key, val in val_list))
+        logger.info("*"*15 + "%s std: %s", name, ", ".join("%s=%3.4f" % (key, np.std(val)) for key, val in val_list))
+
+
 def main_clean():
     args = parse_args()
-    dataset = "cora"
+    dataset = "citeseer"
 
     seed = random.randint(1, 1000000000)
     # "feat_type": "neighbors",
@@ -240,34 +253,24 @@ def main_clean():
     init_seed(conf['seed'], conf['cuda'])
     dataset_path = os.path.join(PROJ_DIR, "data", dataset)
 
-    products_path = os.path.join(GCN_DIR, "logs", args.prefix + dataset, time.strftime("%Y_%m_%d_%H_%M_%S"))
+    products_path = os.path.join(CUR_DIR, "logs", args.prefix + dataset, time.strftime("%Y_%m_%d_%H_%M_%S"))
     if not os.path.exists(products_path):
         os.makedirs(products_path)
 
     logger = multi_logger([
-        PrintLogger("IdansLogger", level=logging.INFO),
-        # FileLogger("results_%s" % config["dataset"], path=products_path, level=logging.INFO),
-        # FileLogger("results_%s_all" % config["dataset"], path=products_path, level=logging.DEBUG),
+        PrintLogger("IdansLogger", level=logging.DEBUG),
+        FileLogger("results_%s" % conf["dataset"], path=products_path, level=logging.INFO),
+        FileLogger("results_%s_all" % conf["dataset"], path=products_path, level=logging.DEBUG),
     ], name=None)
 
     data_logger = CSVLogger("results_%s" % conf["dataset"], path=products_path)
     data_logger.info("model_name", "loss", "acc", "train_p")
 
     runner = ModelRunner(dataset_path, conf, logger=logger, data_logger=data_logger)
+    # execute_runner(runner, logger, 5, num_iter=30)
 
-    train_p = 5
-    relative_train_p = train_p / 100.
-    val_p = test_p = (1 - relative_train_p) / 2.
-    relative_train_p /= val_p + relative_train_p
-    train_p = relative_train_p
-
-    runner.loader.split_test(test_p)
-    res = [runner.run(train_p) for _ in range(2)]
-    aggregated = aggregate_results(res)
-    for name, vals in aggregated.items():
-        val_list = sorted(vals.items(), key=lambda x: x[0], reverse=True)
-        logger.info("***** %s mean: %s", name, ", ".join("%s=%3.4f" % (key, np.mean(val)) for key, val in val_list))
-        logger.info("***** %s std: %s", name, ", ".join("%s=%3.4f" % (key, np.std(val)) for key, val in val_list))
+    for train_p in range(5, 90, 10):
+        execute_runner(runner, logger, train_p, num_iter=10)
     logger.info("Finished")
 
 

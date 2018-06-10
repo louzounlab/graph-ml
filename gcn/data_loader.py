@@ -73,7 +73,8 @@ class GraphLoader(object):
 
         self._logger.debug("Loading %s dataset...", self._data_path)
         features_path = self._features_path()
-        self._gnx = pickle.load(open(os.path.join(features_path, "gnx.pkl"), "rb"))
+        gpath = os.path.realpath(os.path.join(features_path, "..", "gnx.pkl"))
+        self._gnx = pickle.load(open(gpath, "rb"))
 
         self._nodes_order = sorted(self._gnx)
         self._labels = {i: label for i, label in enumerate(self._gnx.graph["node_labels"])}
@@ -172,7 +173,7 @@ class GraphLoader(object):
         features_path = self._features_path()
         features = GraphFeatures(self._gnx, features_meta, dir_path=features_path,
                                  logger=self._logger, is_max_connected=self._is_max_connected)
-        features.build(include=set(train_set), should_dump=False)
+        features.build(include=set(train_set), should_dump=True)
 
         add_ones = bool({"first_neighbor_histogram", "second_neighbor_histogram"}.intersection(features_meta))
         self._topo_mx = features.to_matrix(add_ones=add_ones, dtype=np.float64, mtype=np.matrix, should_zscore=True)
