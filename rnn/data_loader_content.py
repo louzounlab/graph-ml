@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from torch.autograd import Variable
 from torch.nn.utils import rnn
 
+from features_infra.feature_calculators import z_scoring
 from features_infra.graph_features import GraphFeatures
 from loggers import EmptyLogger
 
@@ -88,7 +89,7 @@ class GraphLoader(object):
         self._gnx_idx = gnx_idx
         self._cuda_num = cuda_num
         self._test_p = test_p
-        self._features_meta = feature_meta
+        # self._features_meta = feature_meta
         self._data_path = data_path
 
         # self._logger.debug("Loading %s dataset...", self._dataset)
@@ -106,6 +107,10 @@ class GraphLoader(object):
         gnx = pickle.load(open(os.path.join(next(self._get_gnx_paths()), "gnx.pkl"), "rb"))
         return gnx.graph["node_labels"]
 
+    def _get_labels_jsn(self):
+        jsn = pickle.load(open(os.path.join(next(self._get_gnx_paths()), "content_jsn.pkl"), "rb"))
+        return set([x["top"] for x in jsn.values()])
+
     @staticmethod
     def _encode_onehot_gnx1(gnx, nodes_order):  # gnx, nodes_order: list = None):
         labels = gnx.graph["node_labels"]
@@ -114,12 +119,14 @@ class GraphLoader(object):
         return np.array(list(map(lambda n: labels_dict[gnx.node[n]['label']], nodes_order)), dtype=np.int32)
 
     def _encode_onehot_gnx(self, gnx, nodes_order):  # gnx, nodes_order: list = None):
-        # labels = gnx.graph["node_labels"]
         ident = np.identity(len(self._labels))
         labels_dict = {label: ident[j, :] for j, label in self._labels.items()}
-        # labels_dict = {c: np.identity(len(self._labels))[i, :] for i, c in enumerate(labels)}
-        # labels_dict.update({i: labels_dict[c] for i, c in enumerate(labels)})
         return np.array(list(map(lambda n: labels_dict[gnx.node[n]['label']], nodes_order)), dtype=np.int32)
+
+    def _encode_onehot_jsn(self, jsn, nodes_order):
+        ident = np.identity(len(self._labels))
+        labels_dict = {label: ident[j, :] for j, label in self._labels.items()}
+        return np.array(list(map(lambda n: labels_dict[jsn[n]["top"]], nodes_order)), dtype=np.int32)
 
     def _join_graphs1(self):
         all_nodes = set()
@@ -213,22 +220,24 @@ class GraphLoader(object):
 
         self._inputs = self._targets = None
         for path in self._get_gnx_paths():
-            feat_path = os.path.join(path, "features_0")
-            gnx = pickle.load(open(os.path.join(feat_path, "gnx.pkl"), "rb"))
-            gnx = gnx.subgraph(self._nodes_order)
+            # feat_path = os.path.join(path, "features_0")
+            vec = pickle.load(open(os.path.join(path, "content_vec.pkl"), "rb"))
+            jsn = pickle.load(open(os.path.join(path, "content_json.pkl"), "rb"))
+            # gnx = gnx.subgraph(self._nodes_order)
 
-            features = GraphFeatures(gnx, self._features_meta, dir_path=feat_path, logger=self._logger)
-            features.build(include=self._train_set)
-
-            add_ones = bool(set(self._features_meta).intersection(["first_neighbor_histogram",
-                                                                   "second_neighbor_histogram"]))
-            cur_data = features.to_matrix(add_ones=add_ones, dtype=np.float32, mtype=np.array, should_zscore=True)
+            # features = GraphFeatures(gnx, self._features_meta, dir_path=feat_path, logger=self._logger)
+            # features.build(include=self._train_set)
+            # add_ones = bool(set(self._features_meta).intersection(["first_neighbor_histogram",
+            #                                                        "second_neighbor_histogram"]))
+            # cur_data = features.to_matrix(add_ones=add_ones, dtype=np.float32, mtype=np.array, should_zscore=True)
+            cur_data = np.vstack([vec[node] for node in self._nodes_order])
+            cur_data = z_scoring(cur_data)
             self._inputs = cur_data if self._inputs is None else np.dstack((self._inputs, cur_data))
-            pickle.dump(cur_data, open(os.path.join(feat_path, "data.pkl"), "wb"))
+            # pickle.dump(cur_data, open(os.path.join(feat_path, "data.pkl"), "wb"))
 
-            cur_labels = self._encode_onehot_gnx(gnx, self._nodes_order)
+            cur_labels = self._encode_onehot_gnx(jsn, self._nodes_order)
             self._targets = cur_labels if self._targets is None else np.dstack((self._targets, cur_labels))
-            pickle.dump(cur_labels, open(os.path.join(feat_path, "labels.pkl"), "wb"))
+            # pickle.dump(cur_labels, open(os.path.join(feat_path, "labels.pkl"), "wb"))
 
         # Arranging data as <batch, seq, feature>
         if self._gnx_idx is None:

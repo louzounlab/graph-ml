@@ -103,11 +103,69 @@ class RNNModel(nn.Module):
         return output
 
 
+class FFModel(nn.Module):
+    RNN_TYPES = ['LSTM', 'GRU', 'RNN_TANH', 'RNN_RELU']
+
+    def __init__(self, n_features, n_output, n_layers, batch_size, dropout=0., rnn_type="RNN_RELU"):
+        super(FFModel, self).__init__()
+
+        self._dropout = dropout
+        # self.drop = nn.Dropout(self._dropout)
+
+        # RNN ---------------------------------------------------------------------------------------------------
+        # n_hidden = 100
+        # self._rnn_type = rnn_type
+        # if self._rnn_type not in self.RNN_TYPES:
+        #     raise ValueError("An invalid rnn_type, options are %s" % (self.RNN_TYPES,))
+        # self._rnn_in, self._hidden_size, self._rnn_layers = n_features, n_hidden, n_layers
+        # self.rnn = nn.RNNBase(self._rnn_type, self._rnn_in, self._hidden_size, self._rnn_layers, bias=False,
+        #                       dropout=self._dropout, batch_first=True)
+        # self._linear = nn.Linear(n_hidden, n_output)
+        # RNN ---------------------------------------------------------------------------------------------------
+
+        # FF ---------------------------------------------------------------------------------------------------
+        hidden_layers = [n_features] + n_layers + [n_output]
+        self.layers = nn.ModuleList([nn.Linear(first, second)
+                                     for first, second in zip(hidden_layers[:-1], hidden_layers[1:])])
+        self._activation_func = functional.relu
+        self.log_softmax = nn.LogSoftmax(dim=1)
+        # FF ---------------------------------------------------------------------------------------------------
+
+        # self._batch_size = batch_size
+        self._hidden = self._init_hidden()
+
+    def detach_hidden(self):
+        self._hidden = self._init_hidden()
+
+    def _init_hidden(self, is_random=False):
+        return True
+        # func = torch.randn if is_random else torch.zeros
+        # gen = lambda: autograd.Variable(func(self._rnn_layers, self._batch_size, self._hidden_size))
+        # if self._rnn_type == 'LSTM':
+        #     return gen(), gen()
+        # return gen()
+
+    def forward(self, inputs):
+        x = inputs
+        for layer in self.layers:
+            x = self._activation_func(layer(x))
+            # x = functional.dropout(x, self._dropout, training=self.training)
+        return self.log_softmax(x)
+
+    def forward1(self, inputs):
+        # input = (batch, seq_len, features)
+        output = self.layer1(inputs, self._hidden)
+        output = self._linear(output)
+        output = self.log_softmax(output)
+        return output
+
+
 if __name__ == "__main__":
     # model = RNNModel(200, 6, [100, 30, 10], dropout=0.2, rnn_type="RNN_TANH")
     print("Finished")
 
 
+########################################################################################################
 class DemoRNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
