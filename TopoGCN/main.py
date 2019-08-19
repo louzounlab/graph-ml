@@ -18,11 +18,12 @@ import torch_geometric.transforms as T
 import nni
 import time
 
-
+# available data sets are: cora, CiteSeer, PubMed
 DataSetName = "cora"
+# is_nni must be True if running through nni platform
 IsNNI = True
 SpaceNeededOnGPU = 8000
-#   "dropout_rate":{"_type":"uniform","_value":[0.3, 0.9]},
+
 
 class Net(nn.Module):
 
@@ -37,22 +38,7 @@ class Net(nn.Module):
         else:
             self._activation_func = F.relu
 
-        # self._rgcn1 = RGCNConv(num_features, HLayer1, num_relations=2, num_bases=5)
-        # self._rgcn2 = RGCNConv(HLayer1, num_classes, num_relations=2, num_bases=5)
-
-        # self._conv1 = GCNConv(num_features, HLayer1)
-        # self._conv2 = GCNConv(HLayer1, num_classes)
-        #
-        # self._topo_conv1 = GCNConv(num_features, TopoHLayer1)
-        # self._topo_conv2 = GCNConv(TopoHLayer1, TopoHLayer2)
-        # # self._topo_conv2 = GCNConv(TopoHLayer1, num_classes)
-
-        # self._fc1 = nn.Linear(num_classes + TopoHLayer2, num_classes*10)
-        # self._fc2 = nn.Linear(num_classes*10, num_classes)
-        # self._drop1 = nn.Dropout(DropOut)
-
     def forward(self, data: torch_geometric.data, edges, edges_type):
-        # def forward(self, data: torch_geometric.data, topo_edges):
 
         x, edge_index = data.x, data.edge_index
 
@@ -61,41 +47,6 @@ class Net(nn.Module):
             x = self._activation_func(layer(x, edges, edges_type))
             x = F.dropout(x, p=self._dropout, training=self.training)
         x = layers[-1](x, edges, edges_type)
-
-        # # Relational GCN
-        # x = self._rgcn1(x, edges, edges_type)
-        # x = F.relu(x)
-        # x = F.dropout(x, p=self._dropout, training=self.training)
-        # x = self._rgcn2(x, edges, edges_type)
-        #
-        # # Combined
-        # x1 = x.clone()
-        # x1 = self._conv1(x1, edge_index)
-        # x1 = F.relu(x1)
-        # x1 = F.dropout(x1, p=GCNDropOut, training=self.training)
-        # x1 = self._conv2(x1, edge_index)
-        #
-        # x2 = x.clone()
-        # x2 = self._topo_conv1(x2, topo_edges)
-        # x2 = F.relu(x2)
-        # x2 = F.dropout(x2, p=TGCNDropOut, training=self.training)
-        # x2 = self._topo_conv2(x2, topo_edges)
-        #
-        # x = torch.cat((x1, x2), dim=1)
-        # x = self._drop1(F.relu(self._fc1(x)))
-        # x = self._fc2(x)
-        #
-        # # # GCN
-        # # x = self._conv1(x, edge_index)
-        # # x = F.relu(x)
-        # # x = F.dropout(x, p=GCNDropOut, training=self.training)
-        # # x = self._conv2(x, edge_index)
-        #
-        # # # Only Topo
-        # # x = self._topo_conv1(x, topo_edges)
-        # # x = F.relu(x)
-        # # x = F.dropout(x, p=TGCNDropOut, training=self.training)
-        # # x = self._topo_conv2(x, topo_edges)
 
         return F.log_softmax(x, dim=1)
 
@@ -113,7 +64,7 @@ class Model:
         self._criterion = None
         self._optimizer = None
 
-        # choosing GPU device
+        # choosing device
         torch.cuda.empty_cache()
         gpu_available_memmory = subprocess.check_output(['nvidia-smi', '--query-gpu=memory.free',
                                                          '--format=csv,nounits,noheader'])
@@ -125,8 +76,8 @@ class Model:
             if self._device.type == 'cuda' and torch.cuda.current_device() not in available_gpu:
                 self._device = "cpu"
         else:
-            self._device = torch.device("cuda:{}".format(available_gpu[0]) if torch.cuda.is_available()
-                                                                           and len(available_gpu) > 0 else "cpu")
+            self._device = torch.device("cuda:{}".format(available_gpu[0]) if torch.cuda.is_available() 
+                                        and len(available_gpu) > 0 else "cpu")
 
         self._topo_edges = None
         self._edges = None
@@ -154,17 +105,11 @@ class Model:
         if self._topo_edges is None:
             self.build_topological_edges()
 
-        # if os.path.exists('myASR.pth'):
-        #     self._net = torch.load('myASR.pth')
-        #     self._net.eval()
-        # else:
-        #     self._net = Net(self._data_set.num_features, self._data_set.num_classes)
         self._net = Net(self._data_set.num_features, self._data_set.num_classes, h_layers=self._params['hidden_sizes'],
                         bases=self._params['bases'], dropout=self._params['dropout_rate'],
                         activation=self._params['activation'])
         self._net.to(self._device)
 
-        # self._criterion = nn.CrossEntropyLoss()
         self._criterion = nn.NLLLoss()
         self._optimizer = optim.Adam(self._net.parameters(), lr=self._params['learning_rate'],
                                      weight_decay=self._params['weight_decay'])
@@ -226,18 +171,6 @@ class Model:
             loss.backward()
             self._optimizer.step()
 
-            # j = 0
-            # while j < 10:
-            #     try:
-            #         torch.cuda.empty_cache()
-            #         loss.backward()
-            #         self._optimizer.step()
-            #
-            #         j = 10
-            #     except:
-            #         j += 1
-            #         time.sleep(30)
-
             # validation
             self._net.eval()
             val_outputs = self._net(self._data, self._edges, self._edges_type)
@@ -280,15 +213,10 @@ class Model:
     def test(self):
         self._net.eval()
         outputs = self._net(self._data, self._edges, self._edges_type)
-        # outputs = self._net(self._data, self._topo_edges)
         _, pred = outputs.max(dim=1)
         correct = float(pred[self._data.test_mask].eq(self._data.y[self._data.test_mask]).sum().item())
         acc = correct / self._data.test_mask.sum().item()
         print("test acc: {:.3f}".format(acc))
-
-        # # output for nni - auto ml
-        # if self._params['is_nni']:
-        #     nni.report_final_result(acc)
 
         return acc
 
@@ -318,7 +246,6 @@ def run_trial(parameters):
     return
 
 
-# is_nni must be True if running through nni platform
 if __name__ == '__main__':
     if IsNNI:
         params = nni.get_next_parameter()
