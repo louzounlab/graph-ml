@@ -9,10 +9,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__),'graph_measures'))
 
 
-from src.accelerated_graph_features.feature_wrappers import clustering_coefficient, k_core, node_page_rank, bfs_moments, \
+from graph_measures.src.accelerated_graph_features.feature_wrappers import clustering_coefficient, k_core, node_page_rank, bfs_moments, \
     motif,attraction_basin,flow
-from src.accelerated_graph_features.graph_timer import FeatureTimer
-from src.accelerated_graph_features.original_features_check import original_bfs_moments
+from graph_measures.src.accelerated_graph_features.graph_timer import FeatureTimer
+from graph_measures.src.accelerated_graph_features.original_features_check import original_bfs_moments
 # from Git.graph_measures.cpp_comparison import compare_motifs
 from graph_measures.features_algorithms.vertices.attractor_basin import AttractorBasinCalculator
 from graph_measures.features_algorithms.vertices.flow import FlowCalculator

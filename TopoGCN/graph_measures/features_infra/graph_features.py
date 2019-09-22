@@ -63,6 +63,7 @@ class GraphFeatures(dict):
         if dump_path is not None and self._gnx is not None:
             pickle.dump(self._gnx, open(self._feature_path("gnx", dump_path), "wb"))
         for name, feature in self.items():
+            # if force_build or not os.path.exists(self._feature_path(name)):
             if force_build or not os.path.exists(self._feature_path(name)) or 'neighbor_histogram' in name:
                 feature.build(include=include, print_time=print_time, is_regression=self._regression)
                 if dump_path is not None:
@@ -199,7 +200,7 @@ class GraphFeatures(dict):
 
 
 if __name__ == "__main__":
-    from feature_meta import ALL_FEATURES
+    from graph_measures.feature_meta import ALL_FEATURES
 
     ftrs = GraphFeatures(nx.DiGraph(), ALL_FEATURES)
     print("Bla")

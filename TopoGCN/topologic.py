@@ -9,7 +9,7 @@ import networkx as nx
 from sklearn.neighbors import NearestNeighbors
 
 Threshold = 5
-Print_Time_Log = False
+Print_Time_Log = True
 
 
 def create_topological_features(nodes, edges, labels, features=None, directed=True, train_set=None, data_path=None,
@@ -18,9 +18,15 @@ def create_topological_features(nodes, edges, labels, features=None, directed=Tr
     g.add_nodes_from(nodes)
     g.add_edges_from(edges)
 
-    g.graph["node_labels"] = list(set(labels.tolist()))
-    for x in nodes:
-        g.nodes[x]['label'] = labels[x].item()
+    if labels.dim() == 1:
+        g.graph["node_labels"] = list(set(labels.tolist()))
+        for x in nodes:
+            g.nodes[x]['label'] = labels[x].item()
+    else:
+        g.graph["node_labels"] = list(range(labels.shape[1]))
+        for x in nodes:
+            g.nodes[x]['label'] = list(np.where(labels[x].cpu().numpy()==1)[0])
+
 
     train_set = [i for i, x in enumerate(train_set) if x.item() != 0]
 
@@ -44,7 +50,7 @@ def get_topo_features(gnx, features_meta=None, train_set=None, data_path='.', lo
     features_path = os.path.join(data_path, "features{}".format(int(gnx.is_directed())))
     features = GraphFeatures(gnx, features_meta, dir_path=features_path,
                              logger=logger, is_max_connected=False)
-    features.build(include=train_set, should_dump=True, print_time=Print_Time_Log)
+    features.build(include=train_set, should_dump=True, print_time=Print_Time_Log, force_build=False)
 
     feat_mx = features.to_matrix(dtype=np.float64, mtype=np.matrix, should_zscore=True)
 

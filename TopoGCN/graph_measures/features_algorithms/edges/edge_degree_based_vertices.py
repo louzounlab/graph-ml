@@ -1,7 +1,7 @@
 import numpy as np
 
-from features_algorithms.vertices.general import GeneralCalculator
-from features_infra.feature_calculators import EdgeFeatureCalculator, FeatureMeta
+from graph_measures.features_algorithms.vertices.general import GeneralCalculator
+from graph_measures.features_infra.feature_calculators import EdgeFeatureCalculator, FeatureMeta
 
 
 class EdgeDegreeBasedCalculator(EdgeFeatureCalculator):

@@ -1,6 +1,7 @@
 from collections import Counter
 
 import community
+from community import community_louvain
 
 from graph_measures.features_infra.feature_calculators import NodeFeatureCalculator, FeatureMeta
 
@@ -11,7 +12,8 @@ class LouvainCalculator(NodeFeatureCalculator):
         return not self._gnx.is_directed()
 
     def _calculate(self, include: set, is_regression=False):
-        partition = community.best_partition(self._gnx)
+        partition = community_louvain.best_partition(self._gnx)
+        # partition = community.best_partition(self._gnx)
         com_size_dict = Counter(partition.values())
         self._features = {node: com_size_dict[partition[node]] for node in self._gnx}
 
